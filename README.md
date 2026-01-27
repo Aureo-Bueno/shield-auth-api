@@ -1,73 +1,94 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo_text.svg" width="320" alt="Nest Logo" /></a>
-</p>
+# NestJS JWT Auth API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A small NestJS API that demonstrates JWT access and refresh tokens with an in-memory user store and Swagger docs.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## What this project does
+- Provides login, refresh, logout, and a protected profile endpoint
+- Issues access tokens that expire in 1 hour
+- Stores refresh tokens in memory with IP and user-agent metadata
+- Exposes Swagger UI at `/docs`
+- Includes unit and integration tests with Jest
 
-## Description
+## How it works
+1. Login (`POST /auth/login`) looks up the user by email in the in-memory list and compares the plain-text password. On success it creates a refresh token (signed with `REFRESH_SECRET`) and an access token (signed with `ACCESS_SECRET`, 1h expiry).
+2. Refresh (`POST /auth/refresh`) verifies the refresh token signature, checks it is still in memory, and returns a new access token.
+3. Logout (`DELETE /auth/logout`) removes refresh tokens from memory. The current implementation clears the in-memory list, which invalidates all refresh tokens.
+4. Protected profile (`GET /users/me`) requires `Authorization: Bearer <access token>`; the JWT strategy extracts `userId` and the controller returns that user.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Installation
-
+## Quick start
 ```bash
-$ npm install
+yarn install
+cp .env.example .env
+yarn start:dev
 ```
 
-## Running the app
+Open `http://localhost:3000/docs` for the Swagger UI.
 
+## Environment variables
+The app reads secrets from `.env` via `@nestjs/config`:
+
+- `ACCESS_SECRET` - used to sign access tokens
+- `REFRESH_SECRET` - used to sign refresh tokens
+
+## Sample users (in memory)
+These are defined in `UsersService` for demo purposes:
+
+| id | name  | email           | password  |
+| -- | ----- | --------------- | --------- |
+| 0  | Aureo | aureo@gmail.com | aureopass |
+| 1  | Bueno | bueno@gmail.com | buenopass |
+
+## API endpoints
+| Method | Path          | Auth   | Description             |
+| ------ | ------------- | ------ | ----------------------- |
+| POST   | /auth/login   | None   | Login and return tokens |
+| POST   | /auth/refresh | None   | Refresh access token    |
+| DELETE | /auth/logout  | None   | Revoke refresh tokens   |
+| GET    | /users/me     | Bearer | Current user profile    |
+
+## Notes
+- Users and refresh tokens live in memory and reset on restart.
+- Passwords are stored in plain text (demo only).
+
+## Tests
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+yarn test
+yarn test:unit
+yarn test:integration
+yarn test:e2e
+yarn test:cov
 ```
 
-## Test
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+## Test coverage (yarn run test:cov)
 ```
+yarn run v1.22.22
+$ jest --coverage
+ PASS  src/auth/auth.controller.spec.ts
+ PASS  src/users/users.controller.spec.ts
+ PASS  src/auth/strategies/jwt.strategy.spec.ts
+ PASS  src/auth/auth.service.spec.ts
+ PASS  src/auth/guards/jwt-auth.guard.spec.ts
+ PASS  src/users/users.service.spec.ts
+----------------------|---------|----------|---------|---------|-------------------
+File                  | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+----------------------|---------|----------|---------|---------|-------------------
+All files             |   96.55 |    76.08 |     100 |   95.94 |
+ auth                 |   94.33 |       75 |     100 |   93.75 |
+  auth.controller.ts  |     100 |       75 |     100 |     100 | 15-42
+  auth.service.ts     |    92.1 |       75 |     100 |   91.42 | 21,35,86
+ auth/guards          |     100 |      100 |     100 |     100 |
+  jwt-auth.guard.ts   |     100 |      100 |     100 |     100 |
+ auth/strategies      |     100 |      100 |     100 |     100 |
+  jwt.strategy.ts     |     100 |      100 |     100 |     100 |
+ users                |     100 |       75 |     100 |     100 |
+  users.controller.ts |     100 |       75 |     100 |     100 | 14
+  users.service.ts    |     100 |       75 |     100 |     100 | 26
+----------------------|---------|----------|---------|---------|-------------------
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](LICENSE).
+Test Suites: 6 passed, 6 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        1.327 s
+Ran all test suites.
+Done in 1.67s.
+```
