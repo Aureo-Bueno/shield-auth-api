@@ -1,15 +1,13 @@
 import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import {
+  ExtractJwt,
+  Strategy,
+  type JwtFromRequestFunction,
+} from 'passport-jwt';
 
 type JwtPayload = {
   userId: number;
 };
-
-type JwtFromRequestFunction = (req: {
-  headers?: {
-    authorization?: string;
-  };
-}) => string | null;
 
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
@@ -18,9 +16,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new Error('ACCESS_SECRET is not set');
     }
 
-    const jwtFromRequest = (
-      ExtractJwt.fromAuthHeaderAsBearerToken as () => JwtFromRequestFunction
-    )();
+    const jwtFromRequest: JwtFromRequestFunction =
+      ExtractJwt.fromAuthHeaderAsBearerToken();
 
     super({
       jwtFromRequest,

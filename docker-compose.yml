@@ -1,4 +1,17 @@
 services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: shield-auth-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: ses
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      EDGE_PORT: 4566
+    volumes:
+      - localstack_data:/var/lib/localstack
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -9,4 +22,10 @@ services:
       - .env
     environment:
       NODE_ENV: production
+      AWS_SES_ENDPOINT: http://localstack:4566
+    depends_on:
+      - localstack
     restart: unless-stopped
+
+volumes:
+  localstack_data:

@@ -31,4 +31,21 @@ describe('UsersService', () => {
       }),
     );
   });
+
+  it('updatePassword updates and returns the user', async () => {
+    const updated = await service.updatePassword(1, '$argon2id$new');
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        id: 1,
+        password: '$argon2id$new',
+      }),
+    );
+  });
+
+  it('updatePassword returns undefined when user does not exist', async () => {
+    const updated = await service.updatePassword(999, '$argon2id$new');
+
+    expect(updated).toBeUndefined();
+  });
 });

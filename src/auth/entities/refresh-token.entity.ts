@@ -5,17 +5,12 @@ class RefreshToken {
     Object.assign(this, init);
   }
 
-  id: number;
-  userId: number;
-  userAgent: string;
-  ipAddress: string;
+  id!: number;
+  userId!: number;
+  userAgent!: string;
+  ipAddress!: string;
 
-  sign(): string {
-    const secret = process.env.REFRESH_SECRET;
-    if (!secret) {
-      throw new Error('REFRESH_SECRET is not set');
-    }
-
+  sign(secret: string): string {
     return sign({ ...this }, secret);
   }
 }
