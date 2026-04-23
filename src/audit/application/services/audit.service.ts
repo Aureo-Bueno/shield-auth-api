@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { AuditEvent, CreateAuditEventInput } from '../../domain/audit-event.entity';
+import {
+  AuditEvent,
+  CreateAuditEventInput,
+} from '../../domain/audit-event.entity';
 import { ListAuditEventsUseCase } from '../use-cases/list-audit-events.use-case';
 import { RecordAuditEventUseCase } from '../use-cases/record-audit-event.use-case';
 
