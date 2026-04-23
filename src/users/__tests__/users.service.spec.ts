@@ -48,4 +48,20 @@ describe('UsersService', () => {
 
     expect(updated).toBeUndefined();
   });
+
+  it('create assigns defaults for role and department', async () => {
+    const created = await service.create({
+      name: 'Created',
+      email: 'created@example.com',
+      password: '$argon2id$created',
+    });
+
+    expect(created).toEqual(
+      expect.objectContaining({
+        id: expect.any(Number),
+        role: 'user',
+        department: 'general',
+      }),
+    );
+  });
 });

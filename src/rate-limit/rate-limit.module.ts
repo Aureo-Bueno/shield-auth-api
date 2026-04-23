@@ -28,14 +28,21 @@ const isAuthenticatedRequest = (request: Request): boolean => {
   }
 };
 
+const isHealthCheckRequest = (request: Request): boolean =>
+  /^\/v\d+\/health\//.test(request.path) || request.path.startsWith('/health/');
+
 @Module({
   imports: [
     ThrottlerModule.forRoot([
       {
         ttl: 60,
         limit: 20,
-        skipIf: (context) =>
-          isAuthenticatedRequest(context.switchToHttp().getRequest<Request>()),
+        skipIf: (context) => {
+          const request = context.switchToHttp().getRequest<Request>();
+          return (
+            isAuthenticatedRequest(request) || isHealthCheckRequest(request)
+          );
+        },
       },
     ]),
   ],

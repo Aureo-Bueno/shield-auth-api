@@ -10,6 +10,7 @@ module.exports = {
     '!**/*.e2e-spec.ts',
     '!**/*.module.ts',
     '!**/main.ts',
+    '!**/*.d.ts',
     '!**/*.dto.ts',
     '!**/*.entity.ts',
     '!**/*.interface.ts',
@@ -19,5 +20,12 @@ module.exports = {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
   coverageDirectory: '../coverage',
+  coverageThreshold: {
+    global: {
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+  },
   testEnvironment: 'node',
 };

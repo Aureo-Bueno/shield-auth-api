@@ -25,4 +25,17 @@ describe('PasswordCryptoService', () => {
     await expect(service.verifyPassword(hash, 'secret123')).resolves.toBe(true);
     await expect(service.verifyPassword(hash, 'wrong')).resolves.toBe(false);
   });
+
+  it('throws when PASSWORD_PEPPER is not configured', () => {
+    const missingPepperConfig = {
+      get: jest.fn(() => undefined),
+    };
+
+    expect(
+      () =>
+        new PasswordCryptoService(
+          missingPepperConfig as unknown as ConfigService,
+        ),
+    ).toThrow('PASSWORD_PEPPER is not set');
+  });
 });

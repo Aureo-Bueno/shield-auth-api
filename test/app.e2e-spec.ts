@@ -9,6 +9,8 @@ describe('Auth (e2e)', () => {
   beforeAll(() => {
     process.env.ACCESS_SECRET = 'test-access-secret';
     process.env.REFRESH_SECRET = 'test-refresh-secret';
+    process.env.API_KEYS = 'e2e-api-key';
+    process.env.OAUTH2_ACCESS_TOKENS = 'e2e-oauth-token';
   });
 
   beforeEach(async () => {
@@ -26,7 +28,7 @@ describe('Auth (e2e)', () => {
 
   it('POST /auth/login returns tokens', async () => {
     const response = await request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/v1/auth/login')
       .send({ email: 'aureo@gmail.com', password: 'aureopass' })
       .expect(201);
 
@@ -40,12 +42,12 @@ describe('Auth (e2e)', () => {
 
   it('POST /auth/refresh returns a new access token', async () => {
     const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/v1/auth/login')
       .send({ email: 'aureo@gmail.com', password: 'aureopass' })
       .expect(201);
 
     const refreshResponse = await request(app.getHttpServer())
-      .post('/auth/refresh')
+      .post('/v1/auth/refresh')
       .send({ refreshToken: loginResponse.body.refreshToken })
       .expect(201);
 
@@ -54,13 +56,27 @@ describe('Auth (e2e)', () => {
 
   it('DELETE /auth/logout revokes the refresh token', async () => {
     const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/v1/auth/login')
       .send({ email: 'aureo@gmail.com', password: 'aureopass' })
       .expect(201);
 
     await request(app.getHttpServer())
-      .delete('/auth/logout')
+      .delete('/v1/auth/logout')
       .send({ refreshToken: loginResponse.body.refreshToken })
+      .expect(200);
+  });
+
+  it('GET /integrations/status accepts API key authentication', async () => {
+    await request(app.getHttpServer())
+      .get('/v1/integrations/status')
+      .set('x-api-key', 'e2e-api-key')
+      .expect(200);
+  });
+
+  it('GET /integrations/status accepts OAuth2 bearer authentication', async () => {
+    await request(app.getHttpServer())
+      .get('/v1/integrations/status')
+      .set('Authorization', 'Bearer e2e-oauth-token')
       .expect(200);
   });
 });

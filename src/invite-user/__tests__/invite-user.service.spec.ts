@@ -221,4 +221,175 @@ describe('InviteUserService', () => {
       'Invite is no longer active',
     );
   });
+
+  it('completeSignUp throws invalid token when invite is missing', async () => {
+    usersService.findByEmail.mockResolvedValue(undefined);
+
+    await expect(
+      service.completeSignUp('missing@example.com', 'secret1234', 'bad-token'),
+    ).rejects.toThrow('Invalid invite token');
+  });
+
+  it('completeSignUp throws when user already exists', async () => {
+    usersService.findByEmail.mockResolvedValue({
+      id: 7,
+      name: 'Existing',
+      email: 'existing@example.com',
+      password: 'hash',
+    });
+
+    await expect(
+      service.completeSignUp('existing@example.com', 'secret1234', 'token'),
+    ).rejects.toThrow('Email already exists in the system');
+  });
+
+  it('completeSignUp throws expired token when invite is expired', async () => {
+    usersService.findByEmail.mockResolvedValue(undefined);
+    awsSesService.sendEmail.mockResolvedValue({ MessageId: 'message-id' });
+
+    await service.invite('expired-user@example.com');
+    const payload = awsSesService.sendEmail.mock.calls[0][0];
+    const match = String(payload.textBody).match(/token=([a-f0-9]+)/);
+    expect(match).toBeTruthy();
+    const token = match?.[1];
+    if (!token) {
+      throw new Error('Token not found in invite email body');
+    }
+
+    const invite = (service as any).invites[0];
+    invite.expires = new Date(Date.now() - 60_000);
+
+    await expect(
+      service.completeSignUp('expired-user@example.com', 'secret1234', token),
+    ).rejects.toThrow('Invite has expired');
+    expect(invite.active).toBe(false);
+  });
+
+  it('uses default INVITE_EXPIRES_HOURS when config is not provided', async () => {
+    const configWithoutExpires = {
+      get: jest.fn((key: string) => {
+        if (key === 'INVITE_REGISTER_URL') {
+          return configValues.INVITE_REGISTER_URL;
+        }
+        return undefined;
+      }),
+    };
+    const serviceWithDefault = new InviteUserService(
+      usersService as unknown as UsersService,
+      awsSesService as unknown as AwsSesService,
+      configWithoutExpires as unknown as ConfigService,
+      passwordCryptoService as unknown as PasswordCryptoService,
+    );
+
+    usersService.findByEmail.mockResolvedValue(undefined);
+    awsSesService.sendEmail.mockResolvedValue({ MessageId: 'message-id' });
+
+    const result = await serviceWithDefault.invite('default-exp@example.com');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        emailInvited: 'default-exp@example.com',
+      }),
+    );
+  });
+
+  it('constructor throws for missing INVITE_REGISTER_URL and invalid INVITE_EXPIRES_HOURS', () => {
+    const missingUrlConfig = {
+      get: jest.fn(() => undefined),
+    };
+    expect(
+      () =>
+        new InviteUserService(
+          usersService as unknown as UsersService,
+          awsSesService as unknown as AwsSesService,
+          missingUrlConfig as unknown as ConfigService,
+          passwordCryptoService as unknown as PasswordCryptoService,
+        ),
+    ).toThrow('INVITE_REGISTER_URL is not set');
+
+    const invalidHoursConfig = {
+      get: jest.fn((key: string) => {
+        if (key === 'INVITE_REGISTER_URL') {
+          return 'http://localhost:5173/sign-up';
+        }
+        if (key === 'INVITE_EXPIRES_HOURS') {
+          return '0';
+        }
+        return undefined;
+      }),
+    };
+
+    expect(
+      () =>
+        new InviteUserService(
+          usersService as unknown as UsersService,
+          awsSesService as unknown as AwsSesService,
+          invalidHoursConfig as unknown as ConfigService,
+          passwordCryptoService as unknown as PasswordCryptoService,
+        ),
+    ).toThrow('INVITE_EXPIRES_HOURS must be a positive integer');
+  });
+
+  it('resendInvite throws for existing user and missing prior invite', async () => {
+    usersService.findByEmail.mockResolvedValue({
+      id: 1,
+      name: 'Existing',
+      email: 'existing@example.com',
+      password: 'hash',
+    });
+
+    await expect(service.resendInvite('existing@example.com')).rejects.toThrow(
+      'Email already exists in the system',
+    );
+
+    usersService.findByEmail.mockResolvedValue(undefined);
+
+    await expect(service.resendInvite('new@example.com')).rejects.toThrow(
+      'Invite not found for email',
+    );
+  });
+
+  it('validateInvite throws for invalid and expired invites', async () => {
+    expect(() => service.validateInvite('none@example.com', 'token')).toThrow(
+      'Invalid invite token',
+    );
+
+    usersService.findByEmail.mockResolvedValue(undefined);
+    awsSesService.sendEmail.mockResolvedValue({ MessageId: 'message-id' });
+    await service.invite('expired-validate@example.com');
+    const payload = awsSesService.sendEmail.mock.calls[0][0];
+    const token = String(payload.textBody).match(/token=([a-f0-9]+)/)?.[1];
+    if (!token) {
+      throw new Error('Token not found');
+    }
+
+    const invite = (service as any).invites[0];
+    invite.expires = new Date(Date.now() - 1_000);
+
+    expect(() =>
+      service.validateInvite('expired-validate@example.com', token),
+    ).toThrow('Invite has expired');
+    expect(invite.active).toBe(false);
+  });
+
+  it('cancelInvite throws for invalid token and handles already inactive invite', async () => {
+    expect(() => service.cancelInvite('none@example.com', 'token')).toThrow(
+      'Invalid invite token',
+    );
+
+    usersService.findByEmail.mockResolvedValue(undefined);
+    awsSesService.sendEmail.mockResolvedValue({ MessageId: 'message-id' });
+    await service.invite('inactive-cancel@example.com');
+    const payload = awsSesService.sendEmail.mock.calls[0][0];
+    const token = String(payload.textBody).match(/token=([a-f0-9]+)/)?.[1];
+    if (!token) {
+      throw new Error('Token not found');
+    }
+
+    const first = service.cancelInvite('inactive-cancel@example.com', token);
+    const second = service.cancelInvite('inactive-cancel@example.com', token);
+
+    expect(first).toEqual({ message: 'Invite canceled successfully' });
+    expect(second).toEqual({ message: 'Invite already inactive' });
+  });
 });
