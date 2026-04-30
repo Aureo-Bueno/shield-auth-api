@@ -17,10 +17,6 @@ describe('AuthController (integration)', () => {
     AUTH_LOCKOUT_MINUTES: '15',
   } as const;
 
-  beforeAll(() => {
-    process.env.REFRESH_SECRET = configValues.REFRESH_SECRET;
-  });
-
   beforeEach(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],

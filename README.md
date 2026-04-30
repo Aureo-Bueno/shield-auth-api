@@ -36,20 +36,38 @@ API em NestJS focada em autenticação e segurança, com fluxos de convite, tril
 ### Observabilidade
 - Tracing distribuído com OpenTelemetry (OTLP HTTP)
 - Logs estruturados com `nestjs-pino` (correlação com `trace_id`/`span_id`)
+- Erros não tratados enviados ao Sentry via filtro global do Nest
+- Profiling opcional com `@sentry/profiling-node`
 - Health checks avançados em `/v1/health/live` e `/v1/health/ready`
+
+### Sentry
+O Sentry é inicializado no bootstrap da aplicação e usa `ConfigService` para ler as variáveis de ambiente.
+
+Principais variáveis:
+- `SENTRY_DSN`
+- `SENTRY_RELEASE`
+- `SENTRY_TRACES_SAMPLE_RATE`
+- `SENTRY_PROFILING_ENABLED`
+- `SENTRY_PROFILE_SESSION_SAMPLE_RATE`
+- `SENTRY_PROFILE_LIFECYCLE`
+
+Comportamento atual:
+- Captura erros não tratados via `SentryGlobalFilter`.
+- Suporta tracing quando `SENTRY_TRACES_SAMPLE_RATE` for maior que zero.
+- Suporta profiling quando `SENTRY_PROFILING_ENABLED=true`.
 
 ## Fluxos (Mermaid)
 
 ### 1) Fluxo de requisição na API
 ```mermaid
 flowchart LR
-    C[Cliente] --> V[/v1/*]
-    V --> M[CSRF Middleware]
-    M --> T[Throttler Guard]
+    C[Cliente] --> V["API v1"]
+    V --> M[CSRF]
+    M --> T[Throttler]
     T --> G{Rota protegida?}
     G -- Não --> CT[Controller]
     G -- Sim --> J[JwtAuthGuard]
-    J --> A[AuthorizationGuard\nRBAC/ABAC]
+    J --> A["Authorization\nRBAC + ABAC"]
     A --> CT
     CT --> S[Application Service]
     S --> I[(In-memory Store)]
@@ -196,6 +214,9 @@ Principais variáveis:
 - `CSRF_ENABLED`, `CSRF_TOKEN`, `CSRF_ALLOWED_ORIGINS`
 - `API_KEYS`, `OAUTH2_ACCESS_TOKENS`, `OAUTH2_AUTH_URL`, `OAUTH2_TOKEN_URL`
 - `OTEL_ENABLED`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_LOG_LEVEL`, `LOG_LEVEL`
+- `SENTRY_DSN`, `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_PROFILING_ENABLED`, `SENTRY_PROFILE_SESSION_SAMPLE_RATE`, `SENTRY_PROFILE_LIFECYCLE`
+- `ARGON2_TIME_COST`, `ARGON2_MEMORY_COST_KIB`, `ARGON2_PARALLELISM`, `ARGON2_HASH_LENGTH`
+- `API_PUBLIC_URL`
 - `HEALTH_MAX_HEAP_BYTES`, `HEALTH_MAX_RSS_BYTES`, `HEALTH_DISK_PATH`, `HEALTH_DISK_THRESHOLD_PERCENT`, `HEALTH_EVENT_LOOP_LAG_MS`, `HEALTH_DEPENDENCY_URL`
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_ENDPOINT`, `AWS_SES_FROM_EMAIL`
 

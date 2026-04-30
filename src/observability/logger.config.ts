@@ -1,4 +1,5 @@
 import { context, trace } from '@opentelemetry/api';
+import { ConfigService } from '@nestjs/config';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { Params } from 'nestjs-pino';
@@ -25,9 +26,11 @@ const getTraceContext = (): { traceId?: string; spanId?: string } => {
   return { traceId, spanId };
 };
 
-export const loggerConfig: Params = {
+export const createLoggerConfig = (
+  configService: ConfigService,
+): Params => ({
   pinoHttp: {
-    level: process.env.LOG_LEVEL ?? 'info',
+    level: configService.get<string>('LOG_LEVEL') ?? 'info',
     timestamp: pino.stdTimeFunctions.isoTime,
     genReqId: (request: IncomingMessage) => {
       const requestId = request.headers['x-request-id'];
@@ -56,7 +59,8 @@ export const loggerConfig: Params = {
       const { traceId, spanId } = getTraceContext();
 
       return {
-        service: process.env.OTEL_SERVICE_NAME ?? 'shield-auth-api',
+        service:
+          configService.get<string>('OTEL_SERVICE_NAME') ?? 'shield-auth-api',
         trace_id: traceId,
         span_id: spanId,
       };
@@ -66,4 +70,4 @@ export const loggerConfig: Params = {
       censor: '[REDACTED]',
     },
   },
-};
+});

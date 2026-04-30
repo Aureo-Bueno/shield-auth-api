@@ -1,5 +1,6 @@
 import { HealthController } from './health.controller';
 import { EventLoopHealthIndicator } from './event-loop.health-indicator';
+import { ConfigService } from '@nestjs/config';
 
 describe('HealthController', () => {
   const health = {
@@ -18,18 +19,32 @@ describe('HealthController', () => {
   const http = {
     pingCheck: jest.fn().mockResolvedValue({ dependency: { status: 'up' } }),
   };
+  const configService = {
+    get: jest.fn((key: string) => {
+      const values: Record<string, string | undefined> = {
+        OTEL_SERVICE_NAME: 'shield-auth-api',
+        HEALTH_DEPENDENCY_URL: undefined,
+        HEALTH_MAX_HEAP_BYTES: undefined,
+        HEALTH_MAX_RSS_BYTES: undefined,
+        HEALTH_DISK_PATH: undefined,
+        HEALTH_DISK_THRESHOLD_PERCENT: undefined,
+        HEALTH_EVENT_LOOP_LAG_MS: undefined,
+      };
+
+      return values[key];
+    }),
+  };
 
   let controller: HealthController;
 
   beforeEach(() => {
-    process.env.HEALTH_DEPENDENCY_URL = '';
-    process.env.OTEL_SERVICE_NAME = 'shield-auth-api';
     health.check.mockReset();
     memory.checkHeap.mockClear();
     memory.checkRSS.mockClear();
     disk.checkStorage.mockClear();
     eventLoop.isHealthy.mockClear();
     http.pingCheck.mockClear();
+    configService.get.mockClear();
 
     controller = new HealthController(
       health as any,
@@ -37,6 +52,7 @@ describe('HealthController', () => {
       disk as any,
       eventLoop as unknown as EventLoopHealthIndicator,
       http as any,
+      configService as unknown as ConfigService,
     );
   });
 
@@ -74,7 +90,17 @@ describe('HealthController', () => {
   });
 
   it('readiness includes dependency ping when HEALTH_DEPENDENCY_URL is set', async () => {
-    process.env.HEALTH_DEPENDENCY_URL = 'http://localhost:3001/health';
+    configService.get.mockImplementation((key: string) => {
+      if (key === 'HEALTH_DEPENDENCY_URL') {
+        return 'http://localhost:3001/health';
+      }
+
+      if (key === 'OTEL_SERVICE_NAME') {
+        return 'shield-auth-api';
+      }
+
+      return undefined;
+    });
     health.check.mockImplementation(async (checks: Array<() => Promise<unknown>>) => {
       await Promise.all(checks.map((check) => check()));
       return { ok: true };

@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { verify } from 'jsonwebtoken';
 
-const isAuthenticatedRequest = (request: Request): boolean => {
+const isAuthenticatedRequest = (
+  request: Request,
+  secret: string | undefined,
+): boolean => {
   const authorization = request.headers.authorization;
   if (!authorization) {
     return false;
@@ -15,7 +19,6 @@ const isAuthenticatedRequest = (request: Request): boolean => {
     return false;
   }
 
-  const secret = process.env.ACCESS_SECRET;
   if (!secret) {
     return false;
   }
@@ -33,18 +36,27 @@ const isHealthCheckRequest = (request: Request): boolean =>
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60,
-        limit: 20,
-        skipIf: (context) => {
-          const request = context.switchToHttp().getRequest<Request>();
-          return (
-            isAuthenticatedRequest(request) || isHealthCheckRequest(request)
-          );
-        },
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('ACCESS_SECRET');
+
+        return [
+          {
+            ttl: 60,
+            limit: 20,
+            skipIf: (context) => {
+              const request = context.switchToHttp().getRequest<Request>();
+              return (
+                isAuthenticatedRequest(request, secret) ||
+                isHealthCheckRequest(request)
+              );
+            },
+          },
+        ];
       },
-    ]),
+    }),
   ],
   providers: [
     {

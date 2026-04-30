@@ -62,10 +62,6 @@ describe('AuthService', () => {
 
   const loginValues = { userAgent: 'jest', ipAddress: '127.0.0.1' };
 
-  beforeAll(() => {
-    process.env.REFRESH_SECRET = configValues.REFRESH_SECRET;
-  });
-
   beforeEach(() => {
     usersService.findByEmail.mockReset();
     usersService.findOne.mockReset();

@@ -1,29 +1,56 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
+  const configService = {
+    get: jest.fn((key: string) => {
+      const values: Record<string, string | undefined> = {
+        ACCESS_SECRET: 'test-access-secret',
+        REFRESH_SECRET: 'test-refresh-secret',
+        PASSWORD_PEPPER: 'test-pepper',
+        API_KEYS: 'e2e-api-key',
+        OAUTH2_ACCESS_TOKENS: 'e2e-oauth-token',
+        AWS_REGION: 'us-east-1',
+        AWS_ACCESS_KEY_ID: 'test-access-key',
+        AWS_SECRET_ACCESS_KEY: 'test-secret-key',
+        AWS_SES_FROM_EMAIL: 'no-reply@local.test',
+        AWS_SES_ENDPOINT: 'http://localhost:4566',
+        INVITE_REGISTER_URL: 'http://localhost:5173/sign-up',
+        INVITE_EXPIRES_HOURS: '24',
+        LOG_LEVEL: 'info',
+        OTEL_SERVICE_NAME: 'shield-auth-api',
+        HEALTH_DEPENDENCY_URL: undefined,
+        HEALTH_MAX_HEAP_BYTES: undefined,
+        HEALTH_MAX_RSS_BYTES: undefined,
+        HEALTH_DISK_PATH: undefined,
+        HEALTH_DISK_THRESHOLD_PERCENT: undefined,
+        HEALTH_EVENT_LOOP_LAG_MS: undefined,
+      };
 
-  beforeAll(() => {
-    process.env.ACCESS_SECRET = 'test-access-secret';
-    process.env.REFRESH_SECRET = 'test-refresh-secret';
-    process.env.API_KEYS = 'e2e-api-key';
-    process.env.OAUTH2_ACCESS_TOKENS = 'e2e-oauth-token';
-  });
+      return values[key];
+    }),
+  };
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(ConfigService)
+      .useValue(configService)
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
   });
 
   afterEach(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('POST /auth/login returns tokens', async () => {

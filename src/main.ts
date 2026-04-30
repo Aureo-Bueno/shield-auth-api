@@ -1,5 +1,5 @@
-import './observability/tracing';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -7,11 +7,16 @@ import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { initializeSentry } from './observability/sentry';
+import { initializeTracing } from './observability/tracing';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
+  const configService = app.get(ConfigService, { strict: false });
+  initializeTracing(configService);
+  initializeSentry(configService);
   app.useLogger(app.get(Logger));
   app.flushLogs();
   app.disable('x-powered-by');
@@ -42,10 +47,40 @@ async function bootstrap(): Promise<void> {
     defaultVersion: '1',
   });
 
+  const apiServerUrl =
+    configService.get<string>('API_PUBLIC_URL') ?? 'http://localhost:3000';
+
   const config = new DocumentBuilder()
-    .setTitle('NestJS JWT Auth')
-    .setDescription('API documentation')
+    .setTitle('Shield Auth API')
+    .setDescription(
+      [
+        'Shield Auth API provides authentication, authorization, invite flows, audit access, integration status, and health checks.',
+        '',
+        'Authentication modes:',
+        'bearer for user sessions and authenticated account flows.',
+        'apiKey for server-to-server integration status.',
+        'oauth2 for integration status backed by OAuth2.',
+        '',
+        'The API is versioned under /v1. Use the Authorize button to persist credentials in Swagger UI.',
+      ].join('\n'),
+    )
     .setVersion('v1')
+    .addServer(apiServerUrl, 'Primary API server')
+    .addTag(
+      'auth',
+      'Authentication, token refresh, password reset, and account lifecycle.',
+    )
+    .addTag('users', 'Current user profile and user lookup endpoints.')
+    .addTag(
+      'integrations',
+      'Integration health and access-controlled service status.',
+    )
+    .addTag(
+      'invite-user',
+      'Invite creation, validation, cancellation, and completion.',
+    )
+    .addTag('audit', 'Administrative access to audit events.')
+    .addTag('health', 'Liveness and readiness probes used by orchestration.')
     .addBearerAuth(
       {
         type: 'http',
@@ -70,7 +105,7 @@ async function bootstrap(): Promise<void> {
         flows: {
           clientCredentials: {
             tokenUrl:
-              process.env.OAUTH2_TOKEN_URL ??
+              configService.get<string>('OAUTH2_TOKEN_URL') ??
               'http://localhost:3000/oauth/token',
             scopes: {
               'read:integrations': 'Read integration status',
@@ -78,10 +113,10 @@ async function bootstrap(): Promise<void> {
           },
           authorizationCode: {
             authorizationUrl:
-              process.env.OAUTH2_AUTH_URL ??
+              configService.get<string>('OAUTH2_AUTH_URL') ??
               'http://localhost:3000/oauth/authorize',
             tokenUrl:
-              process.env.OAUTH2_TOKEN_URL ??
+              configService.get<string>('OAUTH2_TOKEN_URL') ??
               'http://localhost:3000/oauth/token',
             scopes: {
               'read:integrations': 'Read integration status',
@@ -91,9 +126,20 @@ async function bootstrap(): Promise<void> {
       },
       'oauth2',
     )
+    .addGlobalResponse(
+      { status: 429, description: 'Too Many Requests' },
+      { status: 500, description: 'Internal Server Error' },
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup('docs', app, document, {
+    customSiteTitle: 'Shield Auth API Docs',
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      docExpansion: 'none',
+    },
+  });
 
   await app.listen(3000);
 }

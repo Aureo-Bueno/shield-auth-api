@@ -1,3 +1,5 @@
+import { ConfigService } from '@nestjs/config';
+
 type TracingTestSetup = {
   handlers: Record<string, () => void>;
   killSpy: jest.SpyInstance;
@@ -11,22 +13,11 @@ type TracingTestSetup = {
   OTLPTraceExporterMock: jest.Mock;
 };
 
-const setupTracingImport = (
-  env: Record<string, string | undefined>,
+const setupTracingInit = (
+  values: Record<string, string | undefined>,
   shutdownReject = false,
 ): TracingTestSetup => {
   jest.resetModules();
-
-  const originalEnv = {
-    OTEL_ENABLED: process.env.OTEL_ENABLED,
-    OTEL_LOG_LEVEL: process.env.OTEL_LOG_LEVEL,
-    OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
-    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-    NODE_ENV: process.env.NODE_ENV,
-    npm_package_version: process.env.npm_package_version,
-  };
-
-  Object.assign(process.env, env);
 
   const handlers: Record<string, () => void> = {};
   const killSpy = jest
@@ -79,11 +70,14 @@ const setupTracingImport = (
     SEMRESATTRS_SERVICE_VERSION: 'service.version',
   }));
 
-  jest.isolateModules(() => {
-    require('./tracing');
-  });
+  const configService = {
+    get: jest.fn((key: string) => values[key]),
+  };
 
-  Object.assign(process.env, originalEnv);
+  jest.isolateModules(() => {
+    const { initializeTracing } = require('./tracing');
+    initializeTracing(configService as unknown as ConfigService);
+  });
 
   return {
     handlers,
@@ -105,8 +99,8 @@ describe('tracing bootstrap', () => {
     jest.clearAllMocks();
   });
 
-  it('does not initialize tracing when OTEL_ENABLED is false', async () => {
-    const setup = setupTracingImport({
+  it('does not initialize tracing when OTEL_ENABLED is false', () => {
+    const setup = setupTracingInit({
       OTEL_ENABLED: 'false',
       OTEL_LOG_LEVEL: 'info',
     });
@@ -117,13 +111,13 @@ describe('tracing bootstrap', () => {
   });
 
   it('initializes tracing, starts sdk and handles SIGTERM/SIGINT', async () => {
-    const setup = setupTracingImport({
+    const setup = setupTracingInit({
       OTEL_ENABLED: 'true',
       OTEL_LOG_LEVEL: 'debug',
       OTEL_SERVICE_NAME: 'svc',
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://otel:4318/v1/traces',
       NODE_ENV: 'test',
-      npm_package_version: '1.2.3',
+      SENTRY_RELEASE: '1.2.3',
     });
 
     expect(setup.diagSetLogger).toHaveBeenCalledTimes(1);
@@ -154,7 +148,7 @@ describe('tracing bootstrap', () => {
   });
 
   it('still kills process when sdk shutdown fails', async () => {
-    const setup = setupTracingImport(
+    const setup = setupTracingInit(
       {
         OTEL_ENABLED: 'true',
       },

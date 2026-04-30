@@ -1,4 +1,6 @@
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import {
   ExtractJwt,
   Strategy,
@@ -14,9 +16,10 @@ type JwtPayload = {
   permissions?: Permission[];
 };
 
+@Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
-    const secret = process.env.ACCESS_SECRET;
+  constructor(private readonly configService: ConfigService) {
+    const secret = configService.get<string>('ACCESS_SECRET');
     if (!secret) {
       throw new Error('ACCESS_SECRET is not set');
     }

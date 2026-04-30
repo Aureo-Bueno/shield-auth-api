@@ -6,10 +6,6 @@ import { AuditService } from '../audit.service';
 describe('AuditModule (integration)', () => {
   let auditService: AuditService;
 
-  beforeAll(async () => {
-    process.env.AUDIT_MAX_EVENTS = '1000';
-  });
-
   beforeEach(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true }), AuditModule],

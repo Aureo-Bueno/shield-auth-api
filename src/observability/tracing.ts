@@ -8,19 +8,26 @@ import {
   SEMRESATTRS_SERVICE_NAME,
   SEMRESATTRS_SERVICE_VERSION,
 } from '@opentelemetry/semantic-conventions';
+import { ConfigService } from '@nestjs/config';
 
-const isTracingEnabled = process.env.OTEL_ENABLED === 'true';
+export const initializeTracing = (configService: ConfigService): void => {
+  const isTracingEnabled = configService.get<string>('OTEL_ENABLED') === 'true';
 
-if (isTracingEnabled) {
-  if (process.env.OTEL_LOG_LEVEL === 'debug') {
+  if (!isTracingEnabled) {
+    return;
+  }
+
+  if (configService.get<string>('OTEL_LOG_LEVEL') === 'debug') {
     diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
   }
 
-  const serviceName = process.env.OTEL_SERVICE_NAME ?? 'shield-auth-api';
-  const serviceVersion = process.env.npm_package_version ?? '0.0.1';
-  const deploymentEnvironment = process.env.NODE_ENV ?? 'development';
+  const serviceName =
+    configService.get<string>('OTEL_SERVICE_NAME') ?? 'shield-auth-api';
+  const serviceVersion = configService.get<string>('SENTRY_RELEASE') ?? '0.0.1';
+  const deploymentEnvironment =
+    configService.get<string>('NODE_ENV') ?? 'development';
   const tracesEndpoint =
-    process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT ??
+    configService.get<string>('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT') ??
     'http://localhost:4318/v1/traces';
 
   const sdk = new NodeSDK({
@@ -61,4 +68,4 @@ if (isTracingEnabled) {
   process.once('SIGINT', () => {
     handleSignal('SIGINT');
   });
-}
+};

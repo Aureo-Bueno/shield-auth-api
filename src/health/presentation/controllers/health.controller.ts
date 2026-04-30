@@ -1,4 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   DiskHealthIndicator,
   HealthCheck,
@@ -9,6 +11,7 @@ import {
 } from '@nestjs/terminus';
 import { EventLoopHealthIndicator } from '../../infrastructure/indicators/event-loop.health-indicator';
 
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
   constructor(
@@ -17,9 +20,16 @@ export class HealthController {
     private readonly disk: DiskHealthIndicator,
     private readonly eventLoop: EventLoopHealthIndicator,
     private readonly http: HttpHealthIndicator,
+    private readonly configService: ConfigService,
   ) {}
 
   @Get('live')
+  @ApiOperation({
+    summary: 'Liveness probe',
+    description:
+      'Reports whether the API process is running and ready to receive traffic.',
+  })
+  @ApiOkResponse({ description: 'Service is alive and responding.' })
   liveness(): {
     status: 'ok';
     service: string;
@@ -28,7 +38,7 @@ export class HealthController {
   } {
     return {
       status: 'ok',
-      service: process.env.OTEL_SERVICE_NAME ?? 'shield-auth-api',
+      service: this.configService.get<string>('OTEL_SERVICE_NAME') ?? 'shield-auth-api',
       uptimeSeconds: Number(process.uptime().toFixed(2)),
       timestamp: new Date().toISOString(),
     };
@@ -36,33 +46,48 @@ export class HealthController {
 
   @Get('ready')
   @HealthCheck()
+  @ApiOperation({
+    summary: 'Readiness probe',
+    description:
+      'Runs memory, disk, event loop, and optional dependency checks to determine whether the service should receive traffic.',
+  })
+  @ApiOkResponse({
+    description: 'All readiness checks passed.',
+  })
   readiness() {
     const checks: HealthIndicatorFunction[] = [
       () =>
         this.memory.checkHeap(
           'memory_heap',
-          Number(process.env.HEALTH_MAX_HEAP_BYTES ?? 300 * 1024 * 1024),
+          Number(
+            this.configService.get<string>('HEALTH_MAX_HEAP_BYTES') ??
+              300 * 1024 * 1024,
+          ),
         ),
       () =>
         this.memory.checkRSS(
           'memory_rss',
-          Number(process.env.HEALTH_MAX_RSS_BYTES ?? 500 * 1024 * 1024),
+          Number(
+            this.configService.get<string>('HEALTH_MAX_RSS_BYTES') ??
+              500 * 1024 * 1024,
+          ),
         ),
       () =>
         this.disk.checkStorage('disk', {
-          path: process.env.HEALTH_DISK_PATH ?? '/',
+          path: this.configService.get<string>('HEALTH_DISK_PATH') ?? '/',
           thresholdPercent: Number(
-            process.env.HEALTH_DISK_THRESHOLD_PERCENT ?? 0.9,
+            this.configService.get<string>('HEALTH_DISK_THRESHOLD_PERCENT') ??
+              0.9,
           ),
         }),
       () =>
         this.eventLoop.isHealthy(
           'event_loop',
-          Number(process.env.HEALTH_EVENT_LOOP_LAG_MS ?? 200),
+          Number(this.configService.get<string>('HEALTH_EVENT_LOOP_LAG_MS') ?? 200),
         ),
     ];
 
-    const dependencyUrl = process.env.HEALTH_DEPENDENCY_URL;
+    const dependencyUrl = this.configService.get<string>('HEALTH_DEPENDENCY_URL');
     if (dependencyUrl) {
       checks.push(() => this.http.pingCheck('dependency', dependencyUrl));
     }

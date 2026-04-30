@@ -9,23 +9,36 @@ jest.mock('@opentelemetry/api', () => {
   return { context, trace };
 });
 
-import { loggerConfig } from './logger.config';
+import { ConfigService } from '@nestjs/config';
+import { createLoggerConfig } from './logger.config';
 
 describe('logger.config', () => {
   const otelModule = jest.requireMock('@opentelemetry/api') as {
     trace: { getSpan: jest.Mock };
   };
+  const configService = {
+    get: jest.fn((key: string) => {
+      const values: Record<string, string | undefined> = {
+        LOG_LEVEL: 'info',
+        OTEL_SERVICE_NAME: 'shield-auth-api',
+      };
+
+      return values[key];
+    }),
+  };
 
   beforeEach(() => {
-    process.env.OTEL_SERVICE_NAME = 'shield-auth-api';
     otelModule.trace.getSpan.mockReset();
     otelModule.trace.getSpan.mockReturnValue(null);
+    configService.get.mockClear();
   });
 
   it('reuses x-request-id when present', () => {
     const request = { headers: { 'x-request-id': 'request-123' } } as any;
 
-    const id = loggerConfig.pinoHttp?.genReqId?.(request);
+    const id = createLoggerConfig(
+      configService as unknown as ConfigService,
+    ).pinoHttp?.genReqId?.(request);
 
     expect(id).toBe('request-123');
   });
@@ -33,14 +46,18 @@ describe('logger.config', () => {
   it('generates a request id when header is absent', () => {
     const request = { headers: {} } as any;
 
-    const id = loggerConfig.pinoHttp?.genReqId?.(request);
+    const id = createLoggerConfig(
+      configService as unknown as ConfigService,
+    ).pinoHttp?.genReqId?.(request);
 
     expect(typeof id).toBe('string');
     expect(String(id).length).toBeGreaterThan(0);
   });
 
   it('sets log levels based on status code/error', () => {
-    const customLogLevel = loggerConfig.pinoHttp?.customLogLevel;
+    const customLogLevel = createLoggerConfig(
+      configService as unknown as ConfigService,
+    ).pinoHttp?.customLogLevel;
     if (!customLogLevel) {
       throw new Error('customLogLevel not configured');
     }
@@ -61,7 +78,9 @@ describe('logger.config', () => {
       }),
     });
 
-    const props = loggerConfig.pinoHttp?.customProps?.();
+    const props = createLoggerConfig(
+      configService as unknown as ConfigService,
+    ).pinoHttp?.customProps?.();
 
     expect(props).toEqual(
       expect.objectContaining({
@@ -75,7 +94,9 @@ describe('logger.config', () => {
   it('keeps trace identifiers undefined when no active span exists', () => {
     otelModule.trace.getSpan.mockReturnValue(null);
 
-    const props = loggerConfig.pinoHttp?.customProps?.();
+    const props = createLoggerConfig(
+      configService as unknown as ConfigService,
+    ).pinoHttp?.customProps?.();
 
     expect(props).toEqual(
       expect.objectContaining({
