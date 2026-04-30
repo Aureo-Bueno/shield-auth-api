@@ -26,9 +26,7 @@ const getTraceContext = (): { traceId?: string; spanId?: string } => {
   return { traceId, spanId };
 };
 
-export const createLoggerConfig = (
-  configService: ConfigService,
-): Params => ({
+export const createLoggerConfig = (configService: ConfigService): Params => ({
   pinoHttp: {
     level: configService.get<string>('LOG_LEVEL') ?? 'info',
     timestamp: pino.stdTimeFunctions.isoTime,

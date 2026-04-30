@@ -38,7 +38,9 @@ export class HealthController {
   } {
     return {
       status: 'ok',
-      service: this.configService.get<string>('OTEL_SERVICE_NAME') ?? 'shield-auth-api',
+      service:
+        this.configService.get<string>('OTEL_SERVICE_NAME') ??
+        'shield-auth-api',
       uptimeSeconds: Number(process.uptime().toFixed(2)),
       timestamp: new Date().toISOString(),
     };
@@ -83,11 +85,15 @@ export class HealthController {
       () =>
         this.eventLoop.isHealthy(
           'event_loop',
-          Number(this.configService.get<string>('HEALTH_EVENT_LOOP_LAG_MS') ?? 200),
+          Number(
+            this.configService.get<string>('HEALTH_EVENT_LOOP_LAG_MS') ?? 200,
+          ),
         ),
     ];
 
-    const dependencyUrl = this.configService.get<string>('HEALTH_DEPENDENCY_URL');
+    const dependencyUrl = this.configService.get<string>(
+      'HEALTH_DEPENDENCY_URL',
+    );
     if (dependencyUrl) {
       checks.push(() => this.http.pingCheck('dependency', dependencyUrl));
     }
