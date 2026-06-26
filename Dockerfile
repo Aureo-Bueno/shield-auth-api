@@ -16,4 +16,4 @@ COPY package.json yarn.lock ./
 RUN yarn install --production --frozen-lockfile
 COPY --from=builder /app/dist ./dist
 EXPOSE 3000
-CMD ["node", "dist/main"]
+CMD ["node", "--require", "./dist/observability/instrumentation.js", "dist/main"]

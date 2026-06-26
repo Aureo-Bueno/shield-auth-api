@@ -1,21 +1,7 @@
-jest.mock('@opentelemetry/api', () => {
-  const context = {
-    active: jest.fn(() => 'context'),
-  };
-  const trace = {
-    getSpan: jest.fn(() => null),
-  };
-
-  return { context, trace };
-});
-
 import { ConfigService } from '@nestjs/config';
 import { createLoggerConfig } from './logger.config';
 
 describe('logger.config', () => {
-  const otelModule = jest.requireMock('@opentelemetry/api') as {
-    trace: { getSpan: jest.Mock };
-  };
   const configService = {
     get: jest.fn((key: string) => {
       const values: Record<string, string | undefined> = {
@@ -28,8 +14,6 @@ describe('logger.config', () => {
   };
 
   beforeEach(() => {
-    otelModule.trace.getSpan.mockReset();
-    otelModule.trace.getSpan.mockReturnValue(null);
     configService.get.mockClear();
   });
 
@@ -70,14 +54,7 @@ describe('logger.config', () => {
     ).toBe('error');
   });
 
-  it('injects trace identifiers when span is active', () => {
-    otelModule.trace.getSpan.mockReturnValue({
-      spanContext: () => ({
-        traceId: 'trace-1',
-        spanId: 'span-1',
-      }),
-    });
-
+  it('includes service name in custom props', () => {
     const props = createLoggerConfig(
       configService as unknown as ConfigService,
     ).pinoHttp?.customProps?.();
@@ -85,24 +62,6 @@ describe('logger.config', () => {
     expect(props).toEqual(
       expect.objectContaining({
         service: 'shield-auth-api',
-        trace_id: 'trace-1',
-        span_id: 'span-1',
-      }),
-    );
-  });
-
-  it('keeps trace identifiers undefined when no active span exists', () => {
-    otelModule.trace.getSpan.mockReturnValue(null);
-
-    const props = createLoggerConfig(
-      configService as unknown as ConfigService,
-    ).pinoHttp?.customProps?.();
-
-    expect(props).toEqual(
-      expect.objectContaining({
-        service: 'shield-auth-api',
-        trace_id: undefined,
-        span_id: undefined,
       }),
     );
   });

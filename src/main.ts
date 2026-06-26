@@ -8,15 +8,23 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { initializeSentry } from './observability/sentry';
-import { initializeTracing } from './observability/tracing';
+import {
+  getMetrics,
+  getMetricsContentType,
+  initializeMetrics,
+} from './observability/metrics';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
   const configService = app.get(ConfigService, { strict: false });
-  initializeTracing(configService);
   initializeSentry(configService);
+
+  if (configService.get<string>('METRICS_ENABLED') === 'true') {
+    initializeMetrics();
+  }
+
   app.useLogger(app.get(Logger));
   app.flushLogs();
   app.disable('x-powered-by');
@@ -139,6 +147,15 @@ async function bootstrap(): Promise<void> {
       displayRequestDuration: true,
       docExpansion: 'none',
     },
+  });
+
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.get('/metrics', async (_req, res) => {
+    (res as import('express').Response).setHeader(
+      'Content-Type',
+      getMetricsContentType(),
+    );
+    (res as import('express').Response).send(await getMetrics());
   });
 
   await app.listen(3000);

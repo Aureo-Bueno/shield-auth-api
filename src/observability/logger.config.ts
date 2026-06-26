@@ -1,4 +1,3 @@
-import { context, trace } from '@opentelemetry/api';
 import { ConfigService } from '@nestjs/config';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -15,16 +14,6 @@ const SENSITIVE_REDACT_PATHS = [
   'req.body.token',
   'res.headers["set-cookie"]',
 ];
-
-const getTraceContext = (): { traceId?: string; spanId?: string } => {
-  const activeSpan = trace.getSpan(context.active());
-  if (!activeSpan) {
-    return {};
-  }
-
-  const { traceId, spanId } = activeSpan.spanContext();
-  return { traceId, spanId };
-};
 
 export const createLoggerConfig = (configService: ConfigService): Params => ({
   pinoHttp: {
@@ -53,16 +42,10 @@ export const createLoggerConfig = (configService: ConfigService): Params => ({
 
       return 'info';
     },
-    customProps: () => {
-      const { traceId, spanId } = getTraceContext();
-
-      return {
-        service:
-          configService.get<string>('OTEL_SERVICE_NAME') ?? 'shield-auth-api',
-        trace_id: traceId,
-        span_id: spanId,
-      };
-    },
+    customProps: () => ({
+      service:
+        configService.get<string>('OTEL_SERVICE_NAME') ?? 'shield-auth-api',
+    }),
     redact: {
       paths: SENSITIVE_REDACT_PATHS,
       censor: '[REDACTED]',

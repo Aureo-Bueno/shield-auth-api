@@ -1,4 +1,13 @@
+volumes:
+  localstack_data:
+  prometheus_data:
+  loki_data:
+  tempo_data:
+  grafana_data:
+  promtail_data:
+
 services:
+  # ── Local AWS Services ──────────────────────────────────────────
   localstack:
     image: localstack/localstack:latest
     container_name: shield-auth-localstack
@@ -12,6 +21,7 @@ services:
       - localstack_data:/var/lib/localstack
     restart: unless-stopped
 
+  # ── API ─────────────────────────────────────────────────────────
   api:
     build:
       context: .
@@ -23,9 +33,82 @@ services:
     environment:
       NODE_ENV: production
       AWS_SES_ENDPOINT: http://localstack:4566
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      NODE_OPTIONS: --max-http-header-size=16384
+      METRICS_ENABLED: "true"
     depends_on:
       - localstack
+      - tempo
     restart: unless-stopped
 
-volumes:
-  localstack_data:
+  # ── Observability ──────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: shield-auth-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    container_name: shield-auth-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./infra/loki:/etc/loki
+      - loki_data:/loki
+    command:
+      - '-config.file=/etc/loki/loki-config.yml'
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: shield-auth-tempo
+    ports:
+      - "3200:3200"
+      - "4318:4318"
+    volumes:
+      - ./infra/tempo:/etc/tempo
+      - tempo_data:/var/tempo
+    command:
+      - '-config.file=/etc/tempo/tempo-config.yml'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: shield-auth-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: shield-auth-promtail
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./infra/promtail:/etc/promtail
+      - promtail_data:/tmp
+    command:
+      - '-config.file=/etc/promtail/promtail-config.yml'
+    depends_on:
+      - loki
+    restart: unless-stopped

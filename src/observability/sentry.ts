@@ -38,6 +38,7 @@ export const initializeSentry = (configService: ConfigService): void => {
   Sentry.init({
     dsn,
     enabled: Boolean(dsn),
+    skipOpenTelemetrySetup: true,
     environment: configService.get<string>('NODE_ENV'),
     release: configService.get<string>('SENTRY_RELEASE'),
     tracesSampleRate,
